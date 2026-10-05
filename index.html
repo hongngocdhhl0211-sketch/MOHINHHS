@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mô Hình 3D Hình Học Không Gian - Khối Lập Phương & Hộp Chữ Nhật</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Font Awesome for clean icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Nunito', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(241, 245, 249, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .custom-slider {
+      accent-color: #3b82f6;
+    }
+    .badge-glow {
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+    }
+    /* Pulsing effect for highlighted elements */
+    @keyframes subtle-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+    .pulse-btn {
+      animation: subtle-pulse 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-900 text-slate-100 h-screen w-screen overflow-hidden flex flex-col">
+  <!-- Top Navigation Bar -->
+  <header class="h-14 bg-slate-800/90 backdrop-blur border-b border-slate-700/80 px-4 flex items-center justify-between z-30 shrink-0 shadow-md">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
+        <i class="fa-solid fa-cube text-lg"></i>
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-extrabold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-300">
+          Hình Học 3D: Khối Đa Diện Trực Quan
+        </h1>
+        <p class="text-[11px] text-slate-400 hidden sm:block">Khám phá và nhận biết Cạnh, Mặt, Đỉnh trực quan cho học sinh</p>
+      </div>
+    </div>
+
+    <!-- Shape Switcher -->
+    <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+      <button id="btnCube" onclick="switchShape('cube')" 
+        class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all bg-blue-600 text-white shadow-md">
+        <i class="fa-solid fa-cube"></i>
+        <span>Khối Lập Phương</span>
+      </button>
+      <button id="btnCuboid" onclick="switchShape('cuboid')" 
+        class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-slate-400 hover:text-slate-200 transition-all">
+        <i class="fa-solid fa-box"></i>
+        <span>Khối Hộp Chữ Nhật</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <div class="flex-1 relative flex overflow-hidden">
+    
+    <!-- 3D Canvas Area -->
+    <div id="canvas-container" class="relative flex-1 h-full w-full bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 cursor-grab active:cursor-grabbing">
+      
+      <!-- Instructions Overlay / Quick Hint -->
+      <div class="absolute top-3 left-3 z-10 bg-slate-800/85 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-700/80 text-xs shadow-lg text-slate-300 pointer-events-none flex items-center space-x-2">
+        <i class="fa-solid fa-hand-pointer text-blue-400 animate-bounce"></i>
+        <span>Kéo chuột / vuốt tay để <b>xoay 360°</b> | Cuộn để <b>phóng to/thu nhỏ</b></span>
+      </div>
+
+      <!-- Quick Floating Action: Explode Faces Button -->
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-10">
+        <button id="btnQuickExplode" onclick="toggleExplode()" 
+          class="flex items-center space-x-2.5 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-xs sm:text-sm shadow-xl shadow-indigo-600/30 border border-indigo-400/40 transition-all hover:scale-105 active:scale-95">
+          <i id="quickExplodeIcon" class="fa-solid fa-cubes text-yellow-300 text-base"></i>
+          <span id="quickExplodeText">Tách các mặt</span>
+        </button>
+      </div>
+
+      <!-- Quick Floating Camera Actions -->
+      <div class="absolute top-3 right-3 z-10 flex flex-col space-y-2">
+        <button id="btnAutoRotate" onclick="toggleAutoRotate()" title="Tự động xoay"
+          class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shadow-lg transition-all">
+          <i id="rotateIcon" class="fa-solid fa-arrows-rotate"></i>
+        </button>
+        <button onclick="resetCameraView()" title="Đặt lại góc nhìn"
+          class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shadow-lg transition-all">
+          <i class="fa-solid fa-crosshairs"></i>
+        </button>
+        <button onclick="toggleWireframe()" id="btnWireframe" title="Chế độ khung dây xuyên thấu"
+          class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shadow-lg transition-all">
+          <i class="fa-solid fa-border-none"></i>
+        </button>
+      </div>
+
+      <!-- Selection Feedback Toast at Canvas Bottom -->
+      <div id="selectionBadge" class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 transition-all duration-300 opacity-0 pointer-events-none">
+        <div class="bg-blue-600/90 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-2xl border border-blue-400/50 flex items-center space-x-3 text-sm font-semibold">
+          <i id="selectionBadgeIcon" class="fa-solid fa-info-circle text-amber-300"></i>
+          <span id="selectionBadgeText">Đang quan sát</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    /* Global Application State */
+    let currentShape = 'cube'; // 'cube' or 'cuboid'
+    let highlightMode = 'all'; // 'all', 'vertices', 'edges', 'faces'
+    let isAutoRotating = true;
+    let isWireframe = false;
+    let explodeDistance = 0.0;
+    let targetExplode = 0.0;
+    let isExploded = false;
+    let faceOpacity = 0.75;
+
+    // Dimensions (X: length, Y: height, Z: width)
+    let dimensions = {
+      length: 3.5,
+      height: 3.5,
+      width: 3.5
+    };
+
+    /* Three.js Scene Setup */
+    let scene, camera, renderer, controls;
+    let mainGroup; // Parent group containing all shape meshes
+    let faceMeshes = [];
+    let edgeMeshes = [];
+    let vertexMeshes = [];
+    let raycaster, mouse;
+
+    // Colors
+    const COLORS = {
+      vertex: 0xf43f5e,       // Rose-500
+      vertexHover: 0xff0055,
+      edge: 0xfbbf24,         // Amber-400
+      edgeHover: 0xffe600,
+      faces: [
+        0x3b82f6, // Front: Blue
+        0x10b981, // Back: Emerald
+        0xa855f7, // Top: Purple
+        0xf97316, // Bottom: Orange
+        0x06b6d4, // Left: Cyan
+        0xec4899  // Right: Pink
+      ],
+      wireframe: 0x94a3b8
+    };
+
+    function initThree() {
+      const container = document.getElementById('canvas-container');
+      
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x090d16);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+      camera.position.set(7, 5, 8);
+
+      // Tối ưu hóa Renderer cho iPad đời cũ:
+      // Giới hạn pixelRatio = 1 để tránh quá tải GPU Retina của chip Apple A-series cũ
+      renderer = new THREE.WebGLRenderer({ 
+        antialias: true, 
+        alpha: false, 
+        powerPreference: 'high-performance',
+        precision: 'mediump'
+      });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+      renderer.shadowMap.enabled = false; // Tắt tính toán bóng đổ nặng nề
+      container.appendChild(renderer.domElement);
+
+      // Controls - Hỗ trợ chạm cảm ứng mượt mà trên iPad
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.maxDistance = 25;
+      controls.minDistance = 3;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.2;
+      controls.touches = {
+        ONE: THREE.TOUCH.ROTATE,
+        TWO: THREE.TOUCH.DOLLY_PAN
+      };
+
+      // Ánh sáng nhẹ tối ưu
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambientLight);
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
+      dirLight1.position.set(8, 12, 8);
+      scene.add(dirLight1);
+
+      // Main Group for object
+      mainGroup = new THREE.Group();
+      scene.add(mainGroup);
+
+      // Raycaster for user click interaction
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      // Window resize listener
+      window.addEventListener('resize', onWindowResize, { passive: true });
+
+      // Canvas click / tap listener
+      renderer.domElement.addEventListener('pointerdown', onCanvasPointerDown);
+
+      // Prevent iOS Safari elastic bounce on canvas drag
+      renderer.domElement.style.touchAction = 'none';
+
+      // Initialize Geometry
+      buildModel();
+    }
+
+    function clearCurrentModel() {
+      // Clear all child meshes and dispose materials
+      while (mainGroup.children.length > 0) {
+        const obj = mainGroup.children[0];
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+        mainGroup.remove(obj);
+      }
+      faceMeshes = [];
+      edgeMeshes = [];
+      vertexMeshes = [];
+    }
+
+    function buildModel() {
+      clearCurrentModel();
+
+      const dx = dimensions.length / 2;
+      const dy = dimensions.height / 2;
+      const dz = dimensions.width / 2;
+
+      // 8 Vertex coordinates: Top: 4 corners | Bottom: 4 corners
+      const vertexCoords = [
+        { id: 0, pos: new THREE.Vector3(-dx,  dy,  dz) }, // Front Top Left
+        { id: 1, pos: new THREE.Vector3( dx,  dy,  dz) }, // Front Top Right
+        { id: 2, pos: new THREE.Vector3( dx,  dy, -dz) }, // Back Top Right
+        { id: 3, pos: new THREE.Vector3(-dx,  dy, -dz) }, // Back Top Left
+        { id: 4, pos: new THREE.Vector3(-dx, -dy,  dz) }, // Front Bottom Left
+        { id: 5, pos: new THREE.Vector3( dx, -dy,  dz) }, // Front Bottom Right
+        { id: 6, pos: new THREE.Vector3( dx, -dy, -dz) }, // Back Bottom Right
+        { id: 7, pos: new THREE.Vector3(-dx, -dy, -dz) }  // Back Bottom Left
+      ];
+
+      /* 1. BUILD VERTICES (Giảm số đa giác xuống 12 segment để iPad cũ render mượt mà) */
+      const vertexGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      vertexCoords.forEach((v, index) => {
+        const vMat = new THREE.MeshLambertMaterial({
+          color: COLORS.vertex,
+          emissive: 0xf43f5e,
+          emissiveIntensity: 0.25
+        });
+        const vMesh = new THREE.Mesh(vertexGeom, vMat);
+        vMesh.position.copy(v.pos);
+        vMesh.userData = {
+          type: 'vertex',
+          index: index + 1,
+          basePos: v.pos.clone()
+        };
+        mainGroup.add(vMesh);
+        vertexMeshes.push(vMesh);
+      });
+
+      /* 2. BUILD EDGES (Giảm segment xuống 8 thay vì 16) */
+      const edgePairs = [
+        // Top 4 edges
+        { from: 0, to: 1 },
+        { from: 1, to: 2 },
+        { from: 2, to: 3 },
+        { from: 3, to: 0 },
+        // Bottom 4 edges
+        { from: 4, to: 5 },
+        { from: 5, to: 6 },
+        { from: 6, to: 7 },
+        { from: 7, to: 4 },
+        // Vertical 4 edges
+        { from: 0, to: 4 },
+        { from: 1, to: 5 },
+        { from: 2, to: 6 },
+        { from: 3, to: 7 }
+      ];
+
+      edgePairs.forEach((pair, idx) => {
+        const p1 = vertexCoords[pair.from].pos;
+        const p2 = vertexCoords[pair.to].pos;
+        const length = p1.distanceTo(p2);
+        
+        // Dùng Cylinder 8 cạnh nhẹ nhàng cho iPad
+        const edgeGeom = new THREE.CylinderGeometry(0.06, 0.06, length, 8);
+        const edgeMat = new THREE.MeshLambertMaterial({
+          color: COLORS.edge,
+          emissive: 0xd97706,
+          emissiveIntensity: 0.2
+        });
+        const edgeMesh = new THREE.Mesh(edgeGeom, edgeMat);
+
+        const midPoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        edgeMesh.position.copy(midPoint);
+        edgeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(p2, p1).normalize());
+
+        edgeMesh.userData = {
+          type: 'edge',
+          index: idx + 1,
+          length: length.toFixed(1),
+          fromIndex: pair.from,
+          toIndex: pair.to,
+          basePos: midPoint.clone(),
+          baseQuaternion: edgeMesh.quaternion.clone()
+        };
+
+        mainGroup.add(edgeMesh);
+        edgeMeshes.push(edgeMesh);
+      });
+
+      /* 3. BUILD 6 INDIVIDUAL FACES (PlaneGeometry nhẹ) */
+      const faceDefinitions = [
+        // Front (+Z)
+        { 
+          name: "Mặt trước", 
+          normal: new THREE.Vector3(0, 0, 1), 
+          w: dimensions.length, h: dimensions.height, 
+          pos: new THREE.Vector3(0, 0, dz), 
+          rot: [0, 0, 0],
+          color: COLORS.faces[0]
+        },
+        // Back (-Z)
+        { 
+          name: "Mặt sau", 
+          normal: new THREE.Vector3(0, 0, -1), 
+          w: dimensions.length, h: dimensions.height, 
+          pos: new THREE.Vector3(0, 0, -dz), 
+          rot: [0, Math.PI, 0],
+          color: COLORS.faces[1]
+        },
+        // Top (+Y)
+        { 
+          name: "Mặt đáy trên", 
+          normal: new THREE.Vector3(0, 1, 0), 
+          w: dimensions.length, h: dimensions.width, 
+          pos: new THREE.Vector3(0, dy, 0), 
+          rot: [-Math.PI / 2, 0, 0],
+          color: COLORS.faces[2]
+        },
+        // Bottom (-Y)
+        { 
+          name: "Mặt đáy dưới", 
+          normal: new THREE.Vector3(0, -1, 0), 
+          w: dimensions.length, h: dimensions.width, 
+          pos: new THREE.Vector3(0, -dy, 0), 
+          rot: [Math.PI / 2, 0, 0],
+          color: COLORS.faces[3]
+        },
+        // Left (-X)
+        { 
+          name: "Mặt bên trái", 
+          normal: new THREE.Vector3(-1, 0, 0), 
+          w: dimensions.width, h: dimensions.height, 
+          pos: new THREE.Vector3(-dx, 0, 0), 
+          rot: [0, -Math.PI / 2, 0],
+          color: COLORS.faces[4]
+        },
+        // Right (+X)
+        { 
+          name: "Mặt bên phải", 
+          normal: new THREE.Vector3(1, 0, 0), 
+          w: dimensions.width, h: dimensions.height, 
+          pos: new THREE.Vector3(dx, 0, 0), 
+          rot: [0, Math.PI / 2, 0],
+          color: COLORS.faces[5]
+        }
+      ];
+
+      faceDefinitions.forEach((fDef, idx) => {
+        const faceGeom = new THREE.PlaneGeometry(fDef.w, fDef.h);
+        // Dùng MeshLambertMaterial nhẹ hơn MeshStandardMaterial nhiều lần
+        const faceMat = new THREE.MeshLambertMaterial({
+          color: fDef.color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: faceOpacity,
+          wireframe: isWireframe
+        });
+        const faceMesh = new THREE.Mesh(faceGeom, faceMat);
+        faceMesh.position.copy(fDef.pos);
+        faceMesh.rotation.set(fDef.rot[0], fDef.rot[1], fDef.rot[2]);
+
+        faceMesh.userData = {
+          type: 'face',
+          index: idx + 1,
+          name: fDef.name,
+          normal: fDef.normal,
+          basePos: fDef.pos.clone(),
+          area: (fDef.w * fDef.h).toFixed(1),
+          dimensionsText: `${fDef.w} x ${fDef.h}`
+        };
+
+        mainGroup.add(faceMesh);
+        faceMeshes.push(faceMesh);
+      });
+
+      applyHighlightMode();
+      applyExplode();
+    }
+
+    function applyExplode() {
+      // Displace faces outwards along their surface normals
+      faceMeshes.forEach(face => {
+        const normal = face.userData.normal;
+        const targetPos = face.userData.basePos.clone().add(normal.clone().multiplyScalar(explodeDistance * 1.5));
+        face.position.copy(targetPos);
+      });
+
+      // Expand vertices slightly if exploded to keep relationship visible
+      vertexMeshes.forEach((vm) => {
+        const offset = vm.userData.basePos.clone().normalize().multiplyScalar(explodeDistance * 0.4);
+        vm.position.copy(vm.userData.basePos).add(offset);
+      });
+    }
+
+    function setHighlightMode(mode) {
+      highlightMode = mode;
+      applyHighlightMode();
+
+      const badge = document.getElementById('selectionBadge');
+      const badgeText = document.getElementById('selectionBadgeText');
+      const badgeIcon = document.getElementById('selectionBadgeIcon');
+
+      badge.classList.remove('opacity-0');
+      if (mode === 'vertices') {
+        badgeText.innerText = "Đang làm nổi bật 8 Đỉnh (Chấm đỏ)";
+        badgeIcon.className = "fa-solid fa-circle-dot text-rose-400";
+        showInfo("8 Đỉnh của khối", "Mỗi đỉnh là nơi gặp nhau của 3 cạnh vuông góc trong không gian. Cả khối lập phương và khối hộp chữ nhật đều có đúng 8 đỉnh.");
+      } else if (mode === 'edges') {
+        badgeText.innerText = "Đang làm nổi bật 12 Cạnh (Đường viền vàng)";
+        badgeIcon.className = "fa-solid fa-lines-leaning text-amber-400";
+        showInfo("12 Cạnh của khối", "Gồm 4 cạnh đáy trên, 4 cạnh đáy dưới và 4 cạnh bên thẳng đứng. Ở khối lập phương 12 cạnh bằng nhau; ở khối hộp chữ nhật có 3 nhóm cạnh bằng nhau tương ứng với Dài - Rộng - Cao.");
+      } else if (mode === 'faces') {
+        badgeText.innerText = "Đang làm nổi bật 6 Mặt (Màu sắc)";
+        badgeIcon.className = "fa-solid fa-shapes text-emerald-400";
+        showInfo("6 Mặt của khối", "Gồm 2 mặt đáy (trên & dưới) và 4 mặt bên xung quanh. Các cặp mặt đối diện luôn song song và bằng nhau.");
+      } else {
+        badgeText.innerText = "Xem tổng thể toàn bộ khối hình";
+        badgeIcon.className = "fa-solid fa-cubes text-blue-400";
+        updateShapeInfoText();
+      }
+
+      setTimeout(() => {
+        badge.classList.add('opacity-0');
+      }, 3000);
+    }
+
+    function applyHighlightMode() {
+      // Vertex visibility & style
+      vertexMeshes.forEach(v => {
+        if (highlightMode === 'edges' || highlightMode === 'faces') {
+          v.material.opacity = 0.25;
+          v.material.transparent = true;
+        } else {
+          v.material.opacity = 1.0;
+          v.material.transparent = false;
+        }
+      });
+
+      // Edge visibility & style
+      edgeMeshes.forEach(e => {
+        if (highlightMode === 'vertices' || highlightMode === 'faces') {
+          e.material.opacity = 0.2;
+          e.material.transparent = true;
+        } else {
+          e.material.opacity = 1.0;
+          e.material.transparent = false;
+        }
+      });
+
+      // Face visibility & style
+      faceMeshes.forEach(f => {
+        if (highlightMode === 'vertices' || highlightMode === 'edges') {
+          f.material.opacity = 0.12;
+        } else {
+          f.material.opacity = faceOpacity;
+        }
+      });
+    }
+
+    function onCanvasPointerDown(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      // Check all interactable objects in mainGroup
+      const intersects = raycaster.intersectObjects(mainGroup.children, false);
+
+      if (intersects.length > 0) {
+        // Pick the top valid item (vertex, edge, face)
+        const hit = intersects.find(item => item.object.userData && item.object.userData.type);
+        if (hit) {
+          const data = hit.object.userData;
+          handleItemClicked(data);
+        }
+      }
+    }
+
+    function handleItemClicked(data) {
+      const badge = document.getElementById('selectionBadge');
+      const badgeText = document.getElementById('selectionBadgeText');
+      const badgeIcon = document.getElementById('selectionBadgeIcon');
+      badge.classList.remove('opacity-0');
+
+      if (data.type === 'vertex') {
+        badgeText.innerText = `Đỉnh số ${data.index} (1 trong 8 đỉnh)`;
+        badgeIcon.className = "fa-solid fa-circle-dot text-rose-400";
+      } else if (data.type === 'edge') {
+        badgeText.innerText = `Cạnh số ${data.index} (Độ dài: ${data.length} cm)`;
+        badgeIcon.className = "fa-solid fa-ruler-horizontal text-amber-400";
+      } else if (data.type === 'face') {
+        badgeText.innerText = `${data.name} (Kích thước: ${data.dimensionsText} cm)`;
+        badgeIcon.className = "fa-solid fa-vector-square text-emerald-400";
+      }
+
+      setTimeout(() => {
+        badge.classList.add('opacity-0');
+      }, 3000);
+    }
+
+    function showInfo(title, htmlContent) {
+      // Panel info removed
+    }
+
+    function switchShape(shape) {
+      currentShape = shape;
+      const btnCube = document.getElementById('btnCube');
+      const btnCuboid = document.getElementById('btnCuboid');
+
+      if (shape === 'cube') {
+        btnCube.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all bg-blue-600 text-white shadow-md";
+        btnCuboid.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-slate-400 hover:text-slate-200 transition-all";
+        
+        dimensions.length = 3.5;
+        dimensions.width = 3.5;
+        dimensions.height = 3.5;
+      } else {
+        btnCuboid.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all bg-blue-600 text-white shadow-md";
+        btnCube.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold text-slate-400 hover:text-slate-200 transition-all";
+
+        dimensions.length = 4.5;
+        dimensions.width = 3.0;
+        dimensions.height = 2.5;
+      }
+
+      buildModel();
+    }
+
+    function updateShapeInfoText() {
+      // Panel info removed
+    }
+
+    function updateDimensions() {
+      const l = parseFloat(document.getElementById('sliderLength').value);
+      
+      if (currentShape === 'cube') {
+        dimensions.length = l;
+        dimensions.width = l;
+        dimensions.height = l;
+        document.getElementById('sliderWidth').value = l;
+        document.getElementById('sliderHeight').value = l;
+      } else {
+        dimensions.length = l;
+        dimensions.width = parseFloat(document.getElementById('sliderWidth').value);
+        dimensions.height = parseFloat(document.getElementById('sliderHeight').value);
+      }
+
+      updateDimensionLabels();
+      buildModel();
+    }
+
+    function updateDimensionLabels() {
+      document.getElementById('valLength').innerText = `${dimensions.length.toFixed(1)} cm`;
+      document.getElementById('valWidth').innerText = `${dimensions.width.toFixed(1)} cm`;
+      document.getElementById('valHeight').innerText = `${dimensions.height.toFixed(1)} cm`;
+    }
+
+    function resetDimensions() {
+      if (currentShape === 'cube') {
+        dimensions = { length: 3.5, width: 3.5, height: 3.5 };
+      } else {
+        dimensions = { length: 4.5, width: 3.0, height: 2.5 };
+      }
+      document.getElementById('sliderLength').value = dimensions.length;
+      document.getElementById('sliderWidth').value = dimensions.width;
+      document.getElementById('sliderHeight').value = dimensions.height;
+      updateDimensionLabels();
+      buildModel();
+    }
+
+    function updateOpacity(val) {
+      faceOpacity = parseFloat(val);
+      faceMeshes.forEach(f => {
+        f.material.opacity = faceOpacity;
+      });
+    }
+
+    function toggleAutoRotate() {
+      isAutoRotating = !isAutoRotating;
+      controls.autoRotate = isAutoRotating;
+      const icon = document.getElementById('rotateIcon');
+      const btn = document.getElementById('btnAutoRotate');
+      if (isAutoRotating) {
+        btn.classList.add('bg-blue-600', 'text-white');
+        btn.classList.remove('bg-slate-800/90', 'text-slate-300');
+      } else {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('bg-slate-800/90', 'text-slate-300');
+      }
+    }
+
+    function resetCameraView() {
+      camera.position.set(7, 5, 8);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    function toggleWireframe() {
+      isWireframe = !isWireframe;
+      faceMeshes.forEach(f => {
+        f.material.wireframe = isWireframe;
+      });
+      const btn = document.getElementById('btnWireframe');
+      if (isWireframe) {
+        btn.classList.add('bg-blue-600', 'text-white');
+        btn.classList.remove('bg-slate-800/90', 'text-slate-300');
+      } else {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('bg-slate-800/90', 'text-slate-300');
+      }
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('canvas-container');
+      if (!container) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // Smooth interpolation for exploding / gathering faces
+      if (Math.abs(explodeDistance - targetExplode) > 0.005) {
+        explodeDistance += (targetExplode - explodeDistance) * 0.12;
+        applyExplode();
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Start execution on window load
+    window.onload = function () {
+      initThree();
+      animate();
+    };
+  </script>
+</body>
+</html>
